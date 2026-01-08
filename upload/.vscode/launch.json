@@ -8,13 +8,14 @@
             "name": "(Windows) Launch",
             "type": "cppvsdbg",
             "request": "launch",
-            "program": "C:/Users/lapto/dev/rust/iced/target/debug/upload.exe",
+            "program": "../target/debug/upload.exe",
             "preLaunchTask": "rust: cargo build",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",
             "environment": [],
-            "console": "externalTerminal"
+            //"console": "externalTerminal",
+            "console": "internalConsole"
         }
 
     ]

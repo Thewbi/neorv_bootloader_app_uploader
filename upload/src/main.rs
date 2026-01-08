@@ -1,30 +1,79 @@
 use std::time::Duration;
-use std::io::{self, Write, BufRead, BufReader};
+use std::io::{ self, Write, BufRead, BufReader };
 use std::fs;
 
-use iced::Center;
-use iced::widget::{Column, button, column, text};
+use std::path::Path;
+
+use iced::advanced::graphics::core::SmolStr;
+use iced::window;
+use iced::alignment::Alignment::Start;
+use iced::alignment::Alignment::Center;
+use iced::{ Application, Element, Fill, Font, Function, Preset, Program, Subscription, Task, Theme };
+use iced::widget::{ Column, button, column, text, text_input };
 
 pub fn main() -> iced::Result {
-    iced::run(Counter::update, Counter::view)
+    application().run()
+}
+
+fn application() -> Application<impl Program<Message = Message, Theme = Theme>> {
+
+    iced::application(Upload::new, Upload::update, Upload::view)
+        .title(Upload::title)
+        .window_size((1024.0, 512.0))
 }
 
 #[derive(Default)]
-struct Counter {
+pub struct Upload {
     value: i64,
+    file_to_upload: SmolStr,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 enum Message {
     Connect,
-    Increment,
-    Decrement,
+    InputChanged(String),
+    FileToUploadChanged(SmolStr)
 }
 
-impl Counter {
+fn subtle_test_style(theme: &Theme) -> text::Style {
+    text::Style {
+        color: Some(theme.extended_palette().background.strongest.color),
+    }
+}
+
+impl Upload {
+
+    fn title(&self) -> String {
+        format!("NEORV32 Bootloader Uploader")
+    }
+
+    pub fn new() -> Self {
+        Self {
+            value: 0,
+            file_to_upload: SmolStr::new(r"C:\Users\lapto\dev\VHDL\neorv32-setups\neorv32\sw\example\demo_blink_led\neorv32_exe.bin"),
+            //file_to_upload: SmolStr::new(r"C:\Users\lapto\dev\VHDL\neorv32-setups\neorv32\sw\example\hello_world\neorv32_exe.bin"),
+        }
+    }
+
     fn update(&mut self, message: Message) {
         match message {
+
+            Message::InputChanged(new_input) => {
+                print!("{}\r\n", new_input);
+                self.file_to_upload = SmolStr::new(new_input.as_str());
+            }
+
+            Message::FileToUploadChanged(new_file_to_upload) => {
+                print!("{}\r\n", new_file_to_upload);
+            }
+
             Message::Connect => {
+
+                let path = Path::new(self.file_to_upload.as_str());
+                if !path.exists() {
+                    print!("Path {} does not exist!\r\n", self.file_to_upload.as_str());
+                    return;
+                }
 
                 let mut port = serialport::new("COM5", 19_200)
                     .timeout(Duration::from_millis(10000))
@@ -33,7 +82,9 @@ impl Counter {
 
                 let mut string_buffer = String::new();
 
-                while true {
+                let mut done: bool = false;
+
+                while !done {
 
                     let mut serial_buf: Vec<u8> = vec![0; 100];
                     let bytes_read = port.read(serial_buf.as_mut_slice()).expect("Found no data!");
@@ -72,12 +123,16 @@ impl Counter {
                         // wait for upload to be processed
                         std::thread::sleep(Duration::from_millis(200));
 
-                        //let data: Vec<u8> = fs::read(r"C:\Users\lapto\dev\VHDL\neorv32-setups\neorv32\sw\example\demo_blink_led\neorv32_exe.bin").unwrap();
-                        let data: Vec<u8> = fs::read(r"C:\Users\lapto\dev\VHDL\neorv32-setups\neorv32\sw\example\hello_world\neorv32_exe.bin").unwrap();
-                        port.write(&data[..]);
+                        let path = Path::new(self.file_to_upload.as_str());
 
-                        // wait for upload to be processed
-                        std::thread::sleep(Duration::from_millis(1000));
+                        if path.exists() {
+                            let data: Vec<u8> = fs::read(path).unwrap();
+                            port.write(&data[..]);
+                            // wait for upload to be processed
+                            std::thread::sleep(Duration::from_millis(1000));
+                        } else {
+                            print!("Path {} does not exist!", self.file_to_upload.as_str());
+                        }
 
                     }
 
@@ -92,6 +147,9 @@ impl Counter {
                         let output = "e".as_bytes();
                         port.write(output).expect("Write failed!");
 
+                        // terminate this button click
+                        done = true;
+
                     }
 
                 }
@@ -100,50 +158,54 @@ impl Counter {
 
                 self.value += 3;
             }
-            Message::Increment => {
-                self.value += 1;
-            }
-            Message::Decrement => {
-                self.value -= 1;
-            }
         }
     }
 
     fn view(&self) -> Column<'_, Message> {
         column![
-            button("Connect").on_press(Message::Connect),
-            button("Increment").on_press(Message::Increment),
-            text(self.value).size(50),
-            button("Decrement").on_press(Message::Decrement)
+            button("Upload").on_press(Message::Connect),
+
+            text_input("File:", &self.file_to_upload)
+                    .id("file-to-upload")
+                    .on_input(Message::InputChanged)
+                    .on_submit(Message::FileToUploadChanged(SmolStr::new("")))
+                    .padding(15)
+                    .size(12)
+                    .align_x(Start),
+
+            text("1. Deploy the NEORV32 design to an FPGA board.")
+                    .width(Fill)
+                    .size(16)
+                    .style(subtle_test_style)
+                    .align_x(Start),
+
+            text("2. Make sure the Bootloader is running. A LED should blink if the bootloader is accepting input.")
+                    .width(Fill)
+                    .size(16)
+                    .style(subtle_test_style)
+                    .align_x(Start),
+
+            text("3. Press the Upload button in this application")
+                    .width(Fill)
+                    .size(16)
+                    .style(subtle_test_style)
+                    .align_x(Start),
+
+            text("4. Press the reset button on the FPGA board.")
+                    .width(Fill)
+                    .size(16)
+                    .style(subtle_test_style)
+                    .align_x(Start),
+
+            text("5. This uploader will wait 10 seconds for the Bootloader to respond after the reset. If the bootloader does not respond, tis uploader application terminates itself!")
+                    .width(Fill)
+                    .size(16)
+                    .style(subtle_test_style)
+                    .align_x(Start),
+
         ]
         .padding(20)
         .align_x(Center)
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use iced_test::{Error, simulator};
-
-    #[test]
-    fn it_counts() -> Result<(), Error> {
-        let mut counter = Counter { value: 0 };
-        let mut ui = simulator(counter.view());
-
-        let _ = ui.click("Increment")?;
-        let _ = ui.click("Increment")?;
-        let _ = ui.click("Decrement")?;
-
-        for message in ui.into_messages() {
-            counter.update(message);
-        }
-
-        assert_eq!(counter.value, 1);
-
-        let mut ui = simulator(counter.view());
-        assert!(ui.find("1").is_ok(), "Counter should display 1!");
-
-        Ok(())
-    }
 }
