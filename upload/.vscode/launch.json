@@ -14,8 +14,8 @@
             "stopAtEntry": false,
             "cwd": "${fileDirname}",
             "environment": [],
-            //"console": "externalTerminal",
-            "console": "internalConsole"
+            "console": "externalTerminal",
+            //"console": "internalConsole"
         }
 
     ]
